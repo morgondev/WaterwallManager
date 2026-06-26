@@ -1697,9 +1697,9 @@ function install_bitswap() {
 
     if [[ "$role" == "2" ]]; then
         echo
-        read -rp "Do you want to test the tunnel now? (y/n): " test_ans
+        read -rp "Do you want to test the tunnel now? (Y/n): " test_ans
         test_ans="$(echo "$test_ans" | tr '[:upper:]' '[:lower:]')"
-        if [[ "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
+        if [[ -z "$test_ans" || "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
             echo
             log "Testing tunnel (ping 10.10.0.2 - 10 packets)..."
             echo
@@ -1802,9 +1802,9 @@ function install_reverse_bitswap() {
 
     if [[ "$role" == "2" ]]; then
         echo
-        read -rp "Do you want to test the tunnel now? (y/n): " test_ans
+        read -rp "Do you want to test the tunnel now? (Y/n): " test_ans
         test_ans="$(echo "$test_ans" | tr '[:upper:]' '[:lower:]')"
-        if [[ "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
+        if [[ -z "$test_ans" || "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
             echo
             log "Testing tunnel (ping 10.10.0.2 - 10 packets)..."
             echo
@@ -1875,7 +1875,7 @@ function install_reverse_reality() {
 
         local tls_enabled="no"
         local cert_path="" key_path=""
-        read -rp "Enable TLS Termination? (y/n) [default: n]: " tls_ans
+        read -rp "Enable TLS Termination? (y/N): " tls_ans
         tls_ans="$(echo "$tls_ans" | tr '[:upper:]' '[:lower:]')"
         if [[ "$tls_ans" == "y" || "$tls_ans" == "yes" ]]; then
             tls_enabled="yes"
@@ -1908,7 +1908,7 @@ function install_reverse_reality() {
         [[ -z "$password" ]] && return
 
         local final_ip="127.0.0.1"
-        read -rp "Is this a helper (auxiliary) Kharej server? (y/n) [default: n]: " helper_ans
+        read -rp "Is this a helper (auxiliary) Kharej server? (y/N): " helper_ans
         helper_ans="$(echo "$helper_ans" | tr '[:upper:]' '[:lower:]')"
         if [[ "$helper_ans" == "y" || "$helper_ans" == "yes" ]]; then
             final_ip="$(ask_ip "Enter main Kharej server IP")"
@@ -1985,9 +1985,9 @@ function install_packettunnel() {
 
     if [[ "$role" == "2" ]]; then
         echo
-        read -rp "Do you want to test the tunnel now? (y/n): " test_ans
+        read -rp "Do you want to test the tunnel now? (Y/n): " test_ans
         test_ans="$(echo "$test_ans" | tr '[:upper:]' '[:lower:]')"
-        if [[ "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
+        if [[ -z "$test_ans" || "$test_ans" == "y" || "$test_ans" == "yes" ]]; then
             echo
             log "Testing tunnel (ping 10.10.0.2 - 10 packets)..."
             echo
@@ -2076,7 +2076,7 @@ function uninstall() {
         return
     fi
 
-    read -rp "Are you sure you want to uninstall? (y/n): " ans
+    read -rp "Are you sure you want to uninstall? (y/N): " ans
     ans="$(echo "$ans" | tr '[:upper:]' '[:lower:]')"
     if [[ "$ans" != "y" && "$ans" != "yes" ]]; then
         echo "Uninstall cancelled."
@@ -2099,7 +2099,7 @@ function uninstall() {
 
     if [[ -f "$INSTALL_DIR/Waterwall" ]]; then
         echo
-        read -rp "Delete the Waterwall binary too? (y/n): " del_bin
+        read -rp "Delete the Waterwall binary too? (y/N): " del_bin
         del_bin="$(echo "$del_bin" | tr '[:upper:]' '[:lower:]')"
         if [[ "$del_bin" == "y" || "$del_bin" == "yes" ]]; then
             rm -rf "$INSTALL_DIR"
@@ -2148,27 +2148,34 @@ function port_change_restart_prompt() {
     esac
 }
 
+function read_config_json() {
+    # WaterWall configs contain $var$ syntax that breaks jq
+    # Replace $...$ with quoted placeholder strings before parsing
+    sed 's/\$\([^$]*\)\$/"\1"/g' "$CONFIG_FILE" 2>/dev/null
+}
+
 function detect_config_type() {
     local name
-    name="$(jq -r '.name // empty' "$CONFIG_FILE" 2>/dev/null)"
+    name="$(read_config_json | jq -r '.name // empty' 2>/dev/null)"
     case "$name" in
         *bitswap*|*germany*) echo "bitswap" ;;
+        *reverse-reality*|*reverse*reality*) echo "rreality" ;;
         *) echo "classic" ;;
     esac
 }
 
 function change_ports_bitswap() {
     local config_name
-    config_name="$(jq -r '.name // empty' "$CONFIG_FILE")"
+    config_name="$(read_config_json | jq -r '.name // empty' 2>/dev/null)"
 
     backup="${CONFIG_FILE}.bak_$(date +%Y%m%d_%H%M%S)"
     cp -f "$CONFIG_FILE" "$backup"
     log "Backup saved: $backup"
 
-    echo "Detected BitSwap config: $config_name"
+    echo "Detected config: $config_name"
     echo
 
-    mapfile -t PORT_VARS < <(jq -r '.variables | to_entries[] | select(.key | test("port";"i")) | "\(.key)=\(.value)"' "$CONFIG_FILE" 2>/dev/null)
+    mapfile -t PORT_VARS < <(read_config_json | jq -r '.variables | to_entries[] | select(.key | test("port";"i")) | "\(.key)=\(.value)"' 2>/dev/null)
 
     if [[ "${#PORT_VARS[@]}" -eq 0 ]]; then
         echo "No port variables found in config."
@@ -2179,7 +2186,14 @@ function change_ports_bitswap() {
         local var_name="${entry%%=*}"
         local var_value="${entry#*=}"
 
-        echo "Variable: $var_name"
+        # Show friendly label
+        case "$var_name" in
+            port_to_listen)       echo "Listen port(s) (user ports)" ;;
+            port_to_connect*)     echo "Connect port (to Kharej)" ;;
+            reverse_port)         echo "Reverse port" ;;
+            final_port)           echo "Final port (Xray)" ;;
+            *)                    echo "Variable: $var_name" ;;
+        esac
         echo "Current value: $var_value"
 
         local new_port_json
@@ -2188,10 +2202,12 @@ function change_ports_bitswap() {
         if [[ "$new_port_json" == "SKIP" || -z "$new_port_json" ]]; then
             echo "Keeping $var_value"
         else
-            tmp="$(mktemp)"
-            jq --arg key "$var_name" --argjson val "$new_port_json" '.variables[$key] = $val' "$CONFIG_FILE" > "$tmp"
-            mv -f "$tmp" "$CONFIG_FILE"
-            echo "Updated $var_name to: $new_port_json"
+            # Use sed to replace in the original file (preserves \$var\$ syntax)
+            local escaped_old escaped_new
+            escaped_old="$(echo "$var_value" | sed 's/[[\.*^$()+?{|]/\\&/g')"
+            escaped_new="$new_port_json"
+            sed -i "s/\"$var_name\": *$escaped_old/\"$var_name\": $escaped_new/" "$CONFIG_FILE"
+            echo "Updated to: $new_port_json"
         fi
         echo "----------------------------------------"
     done
@@ -2372,13 +2388,96 @@ function change_ports_classic_output_only() {
     done
 }
 
+function change_ips() {
+    [[ -f "$CONFIG_FILE" ]] || { echo "Config file not found: $CONFIG_FILE"; pause_return_menu; return; }
+
+    local config_type
+    config_type="$(detect_config_type)"
+
+    backup="${CONFIG_FILE}.bak_$(date +%Y%m%d_%H%M%S)"
+    cp -f "$CONFIG_FILE" "$backup"
+    log "Backup saved: $backup"
+
+    if [[ "$config_type" == "classic" ]]; then
+        # Classic config: IPs are inside node settings, find them via capture-ip and IpOverrider
+        local iran_ip kharej_ip
+        iran_ip="$(read_config_json | jq -r '.. | objects | select(.type == "IpOverrider") | .settings | if has("direction") then (if .mode == "source-ip" then .ipv4 else empty end) else (if has("up") then .up["source-ip"].ipv4 else empty end) end' 2>/dev/null | head -n1)"
+        kharej_ip="$(read_config_json | jq -r '.. | objects | select(.type == "RawSocket") | .settings["capture-ip"]' 2>/dev/null | head -n1)"
+
+        echo "Current IPs detected:"
+        echo "  Source IP (this server): $iran_ip"
+        echo "  Remote IP (capture):     $kharej_ip"
+        echo
+
+        local new_source new_remote
+        new_source="$(ask_ip "Enter new source IP (this server, Enter to keep $iran_ip)")"
+        [[ -z "$new_source" ]] && new_source="$iran_ip"
+        new_remote="$(ask_ip "Enter new remote IP (other server, Enter to keep $kharej_ip)")"
+        [[ -z "$new_remote" ]] && new_remote="$kharej_ip"
+
+        if [[ "$new_source" != "$iran_ip" ]]; then
+            sed -i "s/\"ipv4\": \"$iran_ip\"/\"ipv4\": \"$new_source\"/g" "$CONFIG_FILE"
+            log "Source IP updated: $iran_ip -> $new_source"
+        fi
+        if [[ "$new_remote" != "$kharej_ip" ]]; then
+            sed -i "s/\"$kharej_ip\"/\"$new_remote\"/g" "$CONFIG_FILE"
+            log "Remote IP updated: $kharej_ip -> $new_remote"
+        fi
+    else
+        # BitSwap / Reverse / Reality: IPs are in variables section
+        mapfile -t IP_VARS < <(read_config_json | jq -r '.variables | to_entries[] | select(.key | test("ip";"i")) | "\(.key)=\(.value)"' 2>/dev/null)
+
+        if [[ "${#IP_VARS[@]}" -eq 0 ]]; then
+            echo "No IP variables found in config."
+            pause_return_menu
+            return
+        fi
+
+        for entry in "${IP_VARS[@]}"; do
+            local var_name="${entry%%=*}"
+            local var_value="${entry#*=}"
+
+            case "$var_name" in
+                ip_server_iran)   echo "Iran server IP" ;;
+                ip_server_kharej) echo "Kharej server IP" ;;
+                final_ip)         echo "Final IP (service destination)" ;;
+                *)                echo "Variable: $var_name" ;;
+            esac
+            echo "Current value: $var_value"
+
+            local new_ip
+            read -rp "Enter new IP (or press Enter to keep current): " new_ip
+            if [[ -n "$new_ip" && "$new_ip" != "0" ]]; then
+                if validate_ip "$new_ip"; then
+                    sed -i "s/\"$var_name\": \"$var_value\"/\"$var_name\": \"$new_ip\"/" "$CONFIG_FILE"
+                    echo "Updated to: $new_ip"
+                else
+                    echo "Invalid IP, keeping $var_value"
+                fi
+            else
+                echo "Keeping $var_value"
+            fi
+            echo "----------------------------------------"
+        done
+    fi
+
+    echo
+    read -rp "Restart service now? (Y/n): " restart_ans
+    restart_ans="$(echo "$restart_ans" | tr '[:upper:]' '[:lower:]')"
+    if [[ -z "$restart_ans" || "$restart_ans" == "y" || "$restart_ans" == "yes" ]]; then
+        systemctl restart "${SERVICE_NAME}.service" || true
+        log "Service restarted."
+    fi
+    pause_return_menu
+}
+
 function change_ports() {
     [[ -f "$CONFIG_FILE" ]] || { echo "Config file not found: $CONFIG_FILE"; pause_return_menu; return; }
 
     local config_type
     config_type="$(detect_config_type)"
 
-    if [[ "$config_type" == "bitswap" ]]; then
+    if [[ "$config_type" == "bitswap" || "$config_type" == "rreality" ]]; then
         change_ports_bitswap
     else
         echo
@@ -2507,18 +2606,18 @@ function mtu_test() {
             echo "Current Waterwall MTU in core.json: $current_mtu"
             local recommended=$((best_mtu - 80))
             if [[ "$current_mtu" -ne "$recommended" ]]; then
-                read -rp "Update core.json MTU to $recommended? (y/n): " update_mtu
+                read -rp "Update core.json MTU to $recommended? (Y/n): " update_mtu
                 update_mtu="$(echo "$update_mtu" | tr '[:upper:]' '[:lower:]')"
-                if [[ "$update_mtu" == "y" || "$update_mtu" == "yes" ]]; then
+                if [[ -z "$update_mtu" || "$update_mtu" == "y" || "$update_mtu" == "yes" ]]; then
                     local tmp
                     tmp="$(mktemp)"
                     jq --argjson m "$recommended" '.misc.mtu = $m' "$CORE_FILE" > "$tmp"
                     mv -f "$tmp" "$CORE_FILE"
                     log "core.json MTU updated to $recommended."
                     echo
-                    read -rp "Restart service to apply? (y/n): " restart_ans
+                    read -rp "Restart service to apply? (Y/n): " restart_ans
                     restart_ans="$(echo "$restart_ans" | tr '[:upper:]' '[:lower:]')"
-                    if [[ "$restart_ans" == "y" || "$restart_ans" == "yes" ]]; then
+                    if [[ -z "$restart_ans" || "$restart_ans" == "y" || "$restart_ans" == "yes" ]]; then
                         systemctl restart "${SERVICE_NAME}.service" || true
                         log "Service restarted."
                     fi
@@ -2530,6 +2629,23 @@ function mtu_test() {
     fi
 
     pause_return_menu
+}
+
+function diagnostics_menu() {
+    echo
+    echo "Diagnostics & Benchmark"
+    echo "========================="
+    echo "1) iPerf3 Speed Test"
+    echo "2) MTU Test & Optimize"
+    echo "0) Back"
+    echo
+    read -rp "Choose [0-2]: " diag_choice
+    case "$diag_choice" in
+        1) iperf3_test ;;
+        2) mtu_test ;;
+        0) return ;;
+        *) echo "Invalid option."; pause_return_menu ;;
+    esac
 }
 
 function service_management_menu() {
@@ -2548,8 +2664,8 @@ function service_management_menu() {
     echo "2) Service Status"
     echo "3) Test Tunnel"
     echo "4) Change Ports"
-    echo "5) iPerf3 Speed Test"
-    echo "6) MTU Test & Optimize"
+    echo "5) Change IPs"
+    echo "6) Diagnostics & Benchmark"
     echo "7) Uninstall"
     echo "0) Back"
     echo
@@ -2559,8 +2675,8 @@ function service_management_menu() {
         2) status_service ;;
         3) test_tunnel ;;
         4) change_ports ;;
-        5) iperf3_test ;;
-        6) mtu_test ;;
+        5) change_ips ;;
+        6) diagnostics_menu ;;
         7) uninstall ;;
         0) return ;;
         *) echo "Invalid option."; pause_return_menu ;;
@@ -2599,9 +2715,9 @@ function update_core() {
     echo "Current version: v$local_ver"
     echo "Latest version:  v$latest_ver"
     echo
-    read -rp "Update to v$latest_ver? (y/n): " ans
+    read -rp "Update to v$latest_ver? (Y/n): " ans
     ans="$(echo "$ans" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$ans" != "y" && "$ans" != "yes" ]]; then
+    if [[ -n "$ans" && "$ans" != "y" && "$ans" != "yes" ]]; then
         echo "Update cancelled."
         pause_return_menu
         return
@@ -2887,7 +3003,7 @@ function optimize_server() {
             # Same version - ask user
             echo
             echo "Optimization v${installed_ver} is already applied on this server."
-            read -rp "Re-apply? (y/n): " reapply
+            read -rp "Re-apply? (y/N): " reapply
             reapply="$(echo "$reapply" | tr '[:upper:]' '[:lower:]')"
             if [[ "$reapply" != "y" && "$reapply" != "yes" ]]; then
                 echo "Skipped."
@@ -2910,9 +3026,9 @@ function optimize_server() {
     echo
 
     if [[ -z "$installed_ver" ]]; then
-        read -rp "Continue? (y/n): " ans
+        read -rp "Continue? (Y/n): " ans
         ans="$(echo "$ans" | tr '[:upper:]' '[:lower:]')"
-        if [[ "$ans" != "y" && "$ans" != "yes" ]]; then
+        if [[ -n "$ans" && "$ans" != "y" && "$ans" != "yes" ]]; then
             echo "Cancelled."
             pause_return_menu
             return
