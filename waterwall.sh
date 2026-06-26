@@ -141,7 +141,7 @@ function banner() {
     echo "██║███╗██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║███╗██║██╔══██║██║     ██║"
     echo "╚███╔███╔╝██║  ██║   ██║   ███████╗██║  ██║╚███╔███╔╝██║  ██║███████╗███████╗"
     echo " ╚══╝╚══╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝"
-    echo -e "                  WATERWALL - \e[36mBY MEYSAM - Thanks to Radkeswat\e[31m"
+    echo -e "                  WATERWALL - \e[36mBY MEYSAM - Thanks to Radkesvat\e[31m"
     echo "                  SERVER IP: $server_ip"
     echo -e "                  CORE: $ver_status"
     echo -e "\e[31m=================================================="
