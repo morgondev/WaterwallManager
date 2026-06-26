@@ -5,7 +5,7 @@ A comprehensive bash script for deploying and managing [WaterWall](https://githu
 ## Quick Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/logi443/packet/main/packettunnel.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/meysam1092/waterwall/main/waterwall.sh)
 ```
 
 ## Features
