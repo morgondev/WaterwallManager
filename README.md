@@ -5,7 +5,7 @@ A comprehensive bash script for deploying and managing [WaterWall](https://githu
 ## Quick Install
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/morgondev/waterwall/main/waterwall.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/morgondev/waterwallmanager/main/waterwall.sh)
 ```
 
 > **Read before running:** this is a root-level server management script. It downloads a WaterWall release from GitHub, writes `/root/waterwall/core.json` and `/root/waterwall/config.json`, creates/restarts a `waterwall.service` systemd unit, and may install packages with `apt`.
